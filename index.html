@@ -337,24 +337,76 @@ function planCombos(){
   const uniq=[], seen=new Set(); for(const r of results){const k=`${r.set}|${r.pieces}|${r.rune}|${r.pet}`; if(!seen.has(k)){uniq.push(r); seen.add(k);} if(uniq.length>=7) break;} return uniq;
 }
 
-const fmtPct=f=>(f*100).toFixed(2)+'%'; const lineOf=r=>`${r.set}: ${r.pieces} piece${r.pieces===1?'':'s'} (${fmtPct(r.equipPct)})  |  Rune ${r.rune}%  |  Pet ${r.pet}`;
+const lineOf = r =>
+  `${r.set}: ${r.pieces} piece${r.pieces===1?'':'s'} (${fmtPct(r.equipPct)})  |  Rune ${r.rune}%  |  Pet ${r.pet}  |  Quicken Lv.${r.quickLevel}`;
 let lastBest=null;
 function applyTheme(){const b=document.body; b.classList.remove('theme-Abyss','theme-Chaos','theme-Original','theme-Primal'); b.classList.add('theme-'+els.optSet.value);}
 
 function recalc(){
-  applyTheme(); const s=currentState(true);
-  if(s.cls==='Berserker') furyRow?.classList.remove('hidden'); else{furyRow?.classList.add('hidden'); els.fury.checked=false; const b=document.getElementById('furyBtn'); b?.setAttribute('data-on','0'); b?.classList.remove('is-active'); if(b) b.textContent='Off';}
-  const progress=s.requiredTotal<=0?1:clamp((s.buffsAll)/s.requiredTotal,0,1);
-  const pbar=document.getElementById('pbar'); document.getElementById('progressFill').style.width=(progress*100).toFixed(1)+'%';
-  pbar.classList.remove('good','warn','hit'); if(progress>=1){pbar.classList.add('good','hit');} else if(progress>=0.9){pbar.classList.add('warn');}
-  document.getElementById('progressText').textContent=`Progress: ${(progress*100).toFixed(1)}% of required covered`;
-  els.requiredBox.value=(s.requiredRemaining*100).toFixed(2); els.finalBox.value=s.finalSpd.toFixed(2);
-  const plans=planCombos();
-  if(plans.length){ lastBest=plans[0]; els.bestLine.textContent=lineOf(lastBest)+`  → covers ${(lastBest.total*100).toFixed(2)}%`; els.bestWaste.textContent=`Waste overlap: ${(lastBest.waste*100).toFixed(2)}%`; els.altList.innerHTML=plans.slice(1,3).map(r=>`<li>${lineOf(r)} — waste ${(r.waste*100).toFixed(2)}%</li>`).join(''); }
-  else{ lastBest=null; els.bestLine.textContent='No combination found within limits.'; els.bestWaste.textContent='—'; els.altList.innerHTML=''; }
-}
+  // Update the theme to match the selected optimizer set (Abyss/Chaos/Original/Primal)
+  applyTheme();
 
-function applyOptimal(){ if(!lastBest){alert('No optimal combo found yet. Adjust inputs.'); return;} document.getElementById('equip').value=(lastBest.equipPct*100).toFixed(2); document.getElementById('rune').value=String(lastBest.rune); const petMap={'None':'0','B':'6','A':'9','S':'12'}; document.getElementById('pet').value=petMap[lastBest.pet]||'0'; recalc(); }
+  // Current state with all user-entered bonuses included
+  const s = currentState(true);
+
+  // Show/hide Berserker Fury row
+  if (s.cls === 'Berserker') {
+    furyRow?.classList.remove('hidden');
+  } else {
+    furyRow?.classList.add('hidden');
+    els.fury.checked = false;
+    const b = document.getElementById('furyBtn');
+    b?.setAttribute('data-on', '0');
+    b?.classList.remove('is-active');
+    if (b) b.textContent = 'Off';
+  }
+
+  // Progress bar (% of required covered)
+  const progress = s.requiredTotal <= 0 ? 1 : clamp((s.buffsAll) / s.requiredTotal, 0, 1);
+  const pbar = document.getElementById('pbar');
+  document.getElementById('progressFill').style.width = (progress * 100).toFixed(1) + '%';
+  pbar.classList.remove('good', 'warn', 'hit');
+  if (progress >= 1) { pbar.classList.add('good', 'hit'); }
+  else if (progress >= 0.9) { pbar.classList.add('warn'); }
+
+  // Outputs
+  els.progressText.textContent = `Progress: ${(progress * 100).toFixed(1)}% of required covered`;
+  els.requiredBox.value = (s.requiredRemaining * 100).toFixed(2);
+  els.finalBox.value = s.finalSpd.toFixed(2);
+
+  // -------- Optimizer (with Quicken consideration) --------
+  const plans = planCombos(); // uses the new version that iterates Quicken 0→5
+
+  if (plans.length) {
+    lastBest = plans[0];
+
+    // Best line (now includes Quicken level via lineOf)
+    els.bestLine.textContent =
+      lineOf(lastBest) + `  → covers ${(lastBest.total * 100).toFixed(2)}%`;
+
+    // Waste display
+    els.bestWaste.textContent = `Waste overlap: ${(lastBest.waste * 100).toFixed(2)}%`;
+
+    // Alternates (show up to 2, with Quicken + waste too)
+    els.altList.innerHTML = plans.slice(1, 3).map(r =>
+      `<li>${lineOf(r)} — waste ${(r.waste * 100).toFixed(2)}%</li>`
+    ).join('');
+  } else {
+    lastBest = null;
+    els.bestLine.textContent = 'No combination found within limits.';
+    els.bestWaste.textContent = '—';
+    els.altList.innerHTML = '';
+  }
+}
+function applyOptimal(){
+  if(!lastBest){ alert("No optimal combo found yet. Adjust inputs."); return; }
+  els.equip.value = (lastBest.equipPct * 100).toFixed(2);
+  els.rune.value = String(lastBest.rune);
+  const petMap = {"None":"0","B":"6","A":"9","S":"12"};
+  els.pet.value = petMap[lastBest.pet] || "0";
+  els.quicken.value = String(lastBest.quickLevel); // ← set the chosen Quicken
+  recalc();
+}
 document.getElementById('applyBest')?.addEventListener('click', applyOptimal);
 
 function isEditableNumber(el){return el.tagName==='INPUT'&&el.type==='number'&&!el.readOnly}
@@ -362,6 +414,82 @@ document.addEventListener('focusin', e=>{const el=e.target; if(!isEditableNumber
 document.addEventListener('focusout', e=>{const el=e.target; if(!isEditableNumber(el))return; if((el.value||'').trim()===''){ el.value='0'; recalc(); }});
 ['input','change','click'].forEach(evt=>document.addEventListener(evt, e=>{ if(e.target.matches('input, select, button')) recalc(); }));
 recalc();
+  function planCombos(){
+  // Base buffs (no equip/rune/pet so optimizer can choose them)
+  const s = currentState(false);
+  const chosen = els.optSet.value;
+  const pieceVal = SET_VAL[chosen];
+  if (!pieceVal) return [];
+
+  // Pet choices (high → low so we can early-break when covered)
+  const pets = [
+    { name: 'S', v: 0.12 },
+    { name: 'A', v: 0.09 },
+    { name: 'B', v: 0.06 },
+    { name: 'None', v: 0.00 },
+  ];
+
+  const results = [];
+
+  // Try Quicken from lowest to highest (we prefer lower)
+  for (let qLevel = 0; qLevel <= 5; qLevel++) {
+    const quick = qLevel / 100;
+
+    // Recompute required % with this quicken level
+    const denom = Math.max(s.baseSpd * (1 - quick) * s.fury, 1e-9);
+    const requiredTotal = 1 - (TARGET_FINAL / denom);
+    const need = Math.max(0, requiredTotal - s.buffsBase);
+
+    // Gear pieces first (we prefer fewer)
+    for (let pieces = 0; pieces <= MAX_EQUIP_PIECES; pieces++) {
+      const equipPct = pieces * pieceVal;
+
+      // Prefer higher rune (6% → 0%)
+      for (let runePct = 0.06; runePct >= -1e-9; runePct -= 0.01) {
+        const runeFixed = Math.max(0, runePct);
+
+        // Prefer stronger pet (S → A → B → None)
+        for (const pet of pets) {
+          const total = equipPct + runeFixed + pet.v;
+          if (total + 1e-9 >= need) {
+            const waste = total - need;
+            results.push({
+              set: chosen,
+              quickLevel: qLevel,
+              pieces,
+              equipPct,
+              rune: Math.round(runeFixed * 100), // e.g. 6
+              pet: pet.name,
+              petV: pet.v,
+              total,
+              waste
+            });
+            // since pets list is high→low, break to avoid worse pet for same equip/rune
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // Sort by: fewest pieces → lowest quicken → highest rune → best pet → least waste
+  results.sort((a, b) =>
+    (a.pieces - b.pieces) ||
+    (a.quickLevel - b.quickLevel) ||
+    (b.rune - a.rune) ||
+    (b.petV - a.petV) ||
+    (a.waste - b.waste)
+  );
+
+  // Deduplicate concise top results
+  const uniq = [], seen = new Set();
+  for (const r of results) {
+    const k = `${r.set}|${r.quickLevel}|${r.pieces}|${r.rune}|${r.pet}`;
+    if (!seen.has(k)) { uniq.push(r); seen.add(k); }
+    if (uniq.length >= 7) break;
+  }
+  return uniq;
+}
 </script>
 </body>
 </html>
