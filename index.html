@@ -440,9 +440,11 @@ function planCombos(){
   for (let pieces = 0; pieces <= MAX_EQUIP_PIECES; pieces++) {
     const equipPct = pieces * pieceVal;
 
-    // Quicken from 0 → 5 (prefer lower)
-    for (let qLevel = 0; qLevel <= 5; qLevel++) {
-      const quick = qLevel / 100;
+    // Quicken from 0 → 2 only
+for (let qLevel = 0; qLevel <= 2; qLevel++) {
+  const quick = qLevel / 100;
+  // ...
+}
 
       // Higher rune first: 6% → 0%
       for (let runePct = 0.06; runePct >= -1e-9; runePct -= 0.01) {
