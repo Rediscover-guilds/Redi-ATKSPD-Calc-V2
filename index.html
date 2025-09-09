@@ -415,44 +415,42 @@ function currentState(includeEquipRune=true){
 /* =========================
    Optimizer (prefers: fewest gear → lowest quicken → highest rune → best pet → least waste)
 ========================= */
+// Optimizer that treats Quicken as additive coverage and DISALLOWS Lv.3–5
 function planCombos(){
-  // Base buffs only (no equip/rune/pet/quicken)
-  const s = currentState(false);
+  const s = currentState(false);                 // base buffs only (no equip/rune/pet/quicken)
   const chosen   = els.optSet.value;
   const pieceVal = SET_VAL[chosen];
   if (!pieceVal) return [];
 
-  // Compute a fixed "need" with Quicken = 0 so Quicken can count as +q% coverage
+  // Fixed need with quicken = 0, so quicken can count as +q% coverage
   const denom0 = Math.max(s.baseSpd * (1 - 0) * s.fury, 1e-9);
   const requiredTotal0 = 1 - (TARGET_FINAL / denom0);
   const need = Math.max(0, requiredTotal0 - s.buffsBase);
 
   const pets = [
-    { name:'S',    v:0.12 },
-    { name:'A',    v:0.09 },
-    { name:'B',    v:0.06 },
+    { name:'S', v:0.12 },
+    { name:'A', v:0.09 },
+    { name:'B', v:0.06 },
     { name:'None', v:0.00 },
   ];
 
   const results = [];
 
-  // Fewest pieces → lowest quicken → highest rune → best pet
+  // Fewest pieces → lowest quicken (0..2 only) → highest rune → best pet
   for (let pieces = 0; pieces <= MAX_EQUIP_PIECES; pieces++) {
     const equipPct = pieces * pieceVal;
 
-    // Quicken from 0 → 2 only
-for (let qLevel = 0; qLevel <= 2; qLevel++) {
-  const quick = qLevel / 100;
-  // ...
-}
+    // Quicken 0..2 only
+    for (let qLevel = 0; qLevel <= 2; qLevel++) {
+      const q = qLevel / 100;
 
-      // Higher rune first: 6% → 0%
+      // Rune 6% down to 0%
       for (let runePct = 0.06; runePct >= -1e-9; runePct -= 0.01) {
         const rFix = Math.max(0, runePct);
 
-        // Pet from S → A → B → None
+        // Pet S → A → B → None
         for (const pet of pets) {
-          const coverage = equipPct + rFix + pet.v + quick;   // <-- Quicken counts as +q%
+          const coverage = equipPct + rFix + pet.v + q; // additive coverage
           if (coverage + 1e-9 >= need) {
             const waste = coverage - need;
             results.push({
@@ -460,13 +458,13 @@ for (let qLevel = 0; qLevel <= 2; qLevel++) {
               quickLevel: qLevel,
               pieces,
               equipPct,
-              rune: Math.round(rFix*100),
+              rune: Math.round(rFix * 100),
               pet: pet.name,
               petV: pet.v,
               total: coverage,
               waste
             });
-            // Pets are tried strongest→weakest; first hit is best for this (pieces,q,rune)
+            // first pet that works is best for this (pieces, q, rune)
             break;
           }
         }
@@ -483,9 +481,9 @@ for (let qLevel = 0; qLevel <= 2; qLevel++) {
     (a.waste - b.waste)
   );
 
-  // Dedup a handful to show
-  const uniq=[], seen=new Set();
-  for (const r of results){
+  // Dedup & limit
+  const uniq = [], seen = new Set();
+  for (const r of results) {
     const k = `${r.set}|${r.quickLevel}|${r.pieces}|${r.rune}|${r.pet}`;
     if (!seen.has(k)) { uniq.push(r); seen.add(k); }
     if (uniq.length >= 7) break;
